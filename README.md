@@ -53,13 +53,19 @@ manifest's `config_schema`:
 Settings → Plugins → Session Cost (generated from the manifest `config_schema`):
 
 - `command` — explicit tokscale invocation (path or full command); empty
-  auto-detects (`tokscale` on PATH, else pinned `npx -y tokscale@4.15.1`).
+  uses the absolute path of `tokscale` on the Kandev host's PATH. If neither
+  is available the plugin spawns nothing and the popover shows setup
+  guidance. **There is no automatic `npx` fallback** (since 0.3.1): the
+  plugin never downloads code from npm at request time. If you deliberately
+  want npx, type it here yourself, e.g. `npx -y tokscale@4.15.1`.
 - `warn_threshold` (USD, default 1) — amount turns **amber** at or above this.
 - `high_threshold` (USD, default 10) — amount turns **red** at or above this.
 
 ## Layout
 
-- `manifest.yaml` — one GET webhook (`session-cost`), the UI bundle, the
+- `manifest.yaml` — one POST webhook (`session-cost`, `access: authenticated`
+  so only an authenticated Kandev caller can trigger a tokscale run; the
+  backend still accepts GET for older bundles), the UI bundle, the
   `api_read: ["sessions"]` capability, and the `config_schema`.
 - `server/` — Go backend half (`pluginsdk.Plugin`), spawned by kandev over the
   gRPC plugin contract. Maps kandev session id → ACP transcript id, runs
@@ -67,6 +73,14 @@ Settings → Plugins → Session Cost (generated from the manifest `config_schem
   run degrades to an install-status payload rather than a 500.
 - `ui/bundle.js` — hand-written, no-build ES module using the shared host React
   instance and `host.ui` components. It only renders the backend payload.
+
+## Setup
+
+Install the [tokscale](https://github.com/junhoyeo/tokscale) CLI on the
+Kandev host so `tokscale` is on the PATH Kandev runs with, or set an explicit
+path in the `command` setting. The plugin does not download tokscale for you;
+until it can resolve a command, the popover shows setup guidance and no
+process is spawned.
 
 ## Build & install
 
@@ -82,7 +96,7 @@ make package        # tarball for all 5 supported platforms
 Install the tarball via Settings → Plugins → Install plugin (upload), or:
 
 ```sh
-curl -F package=@kandev-session-cost-0.3.0.tar.gz http://localhost:8080/api/plugins/install
+curl -F package=@kandev-session-cost-0.3.1.tar.gz http://localhost:8080/api/plugins/install
 ```
 
 ## CI and releases

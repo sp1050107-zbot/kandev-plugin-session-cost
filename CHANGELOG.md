@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.1] - 2026-09-29
+
+### Security
+
+- Remove the implicit `npx -y tokscale@…` fallback. With no `command` set, the
+  plugin now uses the absolute path of `tokscale` on PATH, or reports
+  "not installed" (`source: "missing"`) with setup guidance and spawns no
+  process. npx runs only if the operator types it into `command`.
+- The `session-cost` webhook is now `access: authenticated` (it was public by
+  default under api_version 1) and the UI calls it with POST so Kandev's
+  same-origin check sees an Origin header. The backend accepts GET and POST
+  and rejects other methods with 405.
+
 ## [0.3.0] - 2026-09-03
 
 ### Changed
