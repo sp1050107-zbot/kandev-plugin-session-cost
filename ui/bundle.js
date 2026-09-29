@@ -269,7 +269,15 @@ function tooltipBody(h, ui, state) {
   var d = state.data;
   if (!d) return stateShell(h, header, "Open to load session cost");
   if (d.tokscale && d.tokscale.installed === false) {
-    return stateShell(h, header, "tokscale isn't available — set its command in Settings → Plugins → Session Cost.");
+    if (d.tokscale.source === "missing") {
+      // The backend never auto-downloads tokscale (no implicit npx fallback).
+      return stateShell(
+        h,
+        header,
+        "tokscale is not installed — install the tokscale CLI on the Kandev host's PATH, or set its command in Settings → Plugins → Session Cost.",
+      );
+    }
+    return stateShell(h, header, "tokscale isn't available — check its command in Settings → Plugins → Session Cost.");
   }
   if (!d.acp_session_id) return stateShell(h, header, "No agent transcript for this session yet — run the agent first.");
   if (!d.found) return stateShell(h, header, "No recorded usage for this session yet.");
@@ -390,7 +398,11 @@ function makeSessionCostAction(host) {
         "&active=" +
         encodeURIComponent(active);
       host.api
-        .fetch(qs)
+        // POST, not GET: the webhook is `access: authenticated`, and kandev
+        // demands a same-origin signal (Origin header) on session-authenticated
+        // webhook calls. Browsers omit Origin on same-origin GETs but always
+        // send it on POST. The backend still accepts GET for older bundles.
+        .fetch(qs, { method: "POST" })
         .then(function (r) {
           return r.json();
         })

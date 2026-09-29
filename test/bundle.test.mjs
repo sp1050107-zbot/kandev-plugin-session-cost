@@ -193,14 +193,14 @@ function createActionHarness() {
     jsx: element,
     ui,
     api: {
-      fetch(url) {
+      fetch(url, init) {
         let resolve;
         let reject;
         const promise = new Promise((nextResolve, nextReject) => {
           resolve = (data) => nextResolve({ json: () => Promise.resolve(data) });
           reject = nextReject;
         });
-        requests.push({ url, resolve, reject });
+        requests.push({ url, init, resolve, reject });
         return promise;
       },
     },
@@ -262,6 +262,30 @@ test("first tap pins details open and starts one initial request", () => {
 
   assert.equal(view.tooltip().props.open, true);
   assert.equal(view.requests.length, 1);
+});
+
+test("session-cost is requested with POST so kandev sees an Origin header", () => {
+  const view = createActionHarness();
+
+  view.trigger().props.onClick();
+
+  assert.equal(view.requests.length, 1);
+  assert.match(view.requests[0].url, /^webhooks\/session-cost\?task_id=task-1&active=session-1$/);
+  assert.equal(view.requests[0].init && view.requests[0].init.method, "POST");
+});
+
+test("missing tokscale renders install guidance without an npx hint", async () => {
+  const view = createActionHarness();
+
+  view.trigger().props.onClick();
+  view.requests[0].resolve(
+    costResponse({ found: false, tokscale: { installed: false, source: "missing" } }),
+  );
+  await flushPromises();
+
+  assert.match(view.text(), /tokscale is not installed/);
+  assert.match(view.text(), /Settings → Plugins → Session Cost/);
+  assert.doesNotMatch(view.text(), /npx/);
 });
 
 test("focus then click shares one request and stays open through its result", async () => {

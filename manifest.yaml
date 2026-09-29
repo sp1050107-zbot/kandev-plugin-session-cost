@@ -1,6 +1,6 @@
 id: "kandev-session-cost"
 api_version: 1
-version: "0.3.0"
+version: "0.3.1"
 display_name: "Session Cost"
 description: "Adds a cost icon to the chat bar with pinnable spend details and explicit refresh — resolved from the agent transcript by the tokscale CLI."
 author: "kandev"
@@ -24,8 +24,14 @@ capabilities:
 
 webhooks:
   - key: "session-cost"
-    description: "Cost of the active chat session as JSON (GET; ?task_id=&active=)"
-    method: "GET"
+    description: "Cost of the active chat session as JSON (POST; ?task_id=&active=) — UI request relay, not an external webhook"
+    # POST because kandev demands a same-origin signal (Origin header) on
+    # session-authenticated webhooks, and browsers omit Origin on same-origin
+    # GETs. `access: authenticated` is explicit because api_version 1 would
+    # otherwise default the webhook to public, letting any local process
+    # trigger a tokscale run. The backend still accepts GET for old bundles.
+    method: "POST"
+    access: "authenticated"
 
 ui:
   bundle: "/ui/bundle.js"
@@ -40,9 +46,11 @@ config_schema:
       type: string
       title: "tokscale command"
       description: >-
-        Command to run the tokscale CLI, e.g. "/usr/local/bin/tokscale" or
-        "npx -y tokscale@4.15.1". Empty = auto-detect ("tokscale" on PATH,
-        otherwise a pinned npx fallback).
+        Command to run the tokscale CLI, e.g. "/usr/local/bin/tokscale".
+        Empty = use "tokscale" from the Kandev host's PATH (absolute path);
+        if it is not found, nothing runs and the popover shows setup
+        guidance. There is no automatic npx download — type an npx command
+        here only if you explicitly want that.
     warn_threshold:
       type: number
       title: "Warn threshold (USD)"
