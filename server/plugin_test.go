@@ -62,11 +62,15 @@ func (r fakeSessionReader) CodeStats(context.Context, pluginsdk.SessionFilter, p
 
 func noLookPath(string) (string, error) { return "", errors.New("not found") }
 
-// newTestPlugin wires a plugin with a scripted runner, no PATH lookup, and a
-// fake Host serving the given config + sessions.
+// fakeLookPath pretends tokscale is installed on PATH (never executed: the
+// runner is always injected).
+func fakeLookPath(string) (string, error) { return "/fake/bin/tokscale", nil }
+
+// newTestPlugin wires a plugin with a scripted runner, a fake PATH hit for
+// tokscale, and a fake Host serving the given config + sessions.
 func newTestPlugin(config map[string]any, sessions []pluginsdk.Session, run runner) *plugin {
 	p := newPlugin()
-	p.lookPath = noLookPath
+	p.lookPath = fakeLookPath
 	p.run = run
 	p.SetHost(&fakeHost{config: config, sessions: sessions})
 	return p
@@ -211,7 +215,7 @@ func TestHandleWebhook_HighClampedBelowWarn(t *testing.T) {
 
 func TestHandleWebhook_DegradesWhenTokscaleMissing(t *testing.T) {
 	run := func(context.Context, string, ...string) ([]byte, error) {
-		return nil, errors.New("exec: \"npx\": executable file not found in $PATH")
+		return nil, errors.New("fork/exec /fake/bin/tokscale: no such file or directory")
 	}
 	sessions := []pluginsdk.Session{session("kandev-sess", "abc-123")}
 	p := newTestPlugin(nil, sessions, run)
@@ -223,7 +227,7 @@ func TestHandleWebhook_DegradesWhenTokscaleMissing(t *testing.T) {
 
 	d := decode(t, resp.Body)
 	require.False(t, d.Tokscale.Installed)
-	require.Contains(t, d.Tokscale.Error, "not found")
+	require.Contains(t, d.Tokscale.Error, "no such file")
 	require.False(t, d.Found)
 }
 

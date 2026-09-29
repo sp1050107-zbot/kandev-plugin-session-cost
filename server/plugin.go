@@ -27,8 +27,10 @@ const (
 
 // plugin implements pluginsdk.Plugin (via UnimplementedPlugin). Its single
 // webhook is relayed by kandev from
-// GET /api/plugins/kandev-session-cost/webhooks/session-cost over gRPC; the
-// chat-toolbar UI is the only intended caller (host.api.fetch).
+// POST (or legacy GET) /api/plugins/kandev-session-cost/webhooks/session-cost
+// over gRPC; the manifest marks it `access: authenticated`, so kandev only
+// relays requests from an authenticated caller. The chat-toolbar UI is the
+// only intended caller (host.api.fetch).
 type plugin struct {
 	pluginsdk.UnimplementedPlugin
 
@@ -89,6 +91,14 @@ func (p *plugin) HandleWebhook(ctx context.Context, req *pluginsdk.WebhookReques
 	if req.WebhookKey != webhookKeySessionCost {
 		return jsonResponse(404, []byte(`{"error":"unknown webhook"}`)), nil
 	}
+	// POST is what the UI sends (it always carries Origin, which kandev's
+	// session-authenticated webhook gate checks); GET stays accepted for
+	// older UI bundles. Kandev does not enforce webhooks[].method itself.
+	switch strings.ToUpper(req.Method) {
+	case "GET", "POST", "":
+	default:
+		return jsonResponse(405, []byte(`{"error":"method not allowed"}`)), nil
+	}
 	query, err := url.ParseQuery(req.Query)
 	if err != nil {
 		query = url.Values{}
@@ -123,6 +133,13 @@ func (p *plugin) sessionCost(ctx context.Context, taskID, activeSessionID string
 
 	// Server-side session -> ACP transcript id mapping via the Host data API.
 	resp.ACPSessionID = p.resolveACPSessionID(ctx, taskID, activeSessionID)
+
+	if cmd.Source == sourceMissing {
+		// Nothing configured and no tokscale on PATH: report setup guidance
+		// without spawning any process.
+		resp.Tokscale = missingStatus()
+		return json.Marshal(resp)
+	}
 
 	runCtx, cancel := context.WithTimeout(ctx, reportTimeout)
 	defer cancel()
